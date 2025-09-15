@@ -11,14 +11,16 @@ app = FastAPI()
 # Paths
 BASE_DIR = os.path.dirname(__file__)
 WEIGHTS_DIR = os.path.join(BASE_DIR, "deepface_weights")
-OPENFACE_WEIGHTS = os.path.join(WEIGHTS_DIR, "openface_weights.h5")
-DEEPFACE_DEFAULT_WEIGHTS = os.path.join(os.path.expanduser("~/.deepface/weights"), "openface_weights.h5")
+FACENET_WEIGHTS = os.path.join(WEIGHTS_DIR, "facenet_weights.h5")
+DEEPFACE_DEFAULT_WEIGHTS = os.path.join(os.path.expanduser("~/.deepface/weights"), "facenet_weights.h5")
 
 # Ensure DeepFace weights directory exists and copy local weights
 os.makedirs(os.path.dirname(DEEPFACE_DEFAULT_WEIGHTS), exist_ok=True)
-shutil.copy2(OPENFACE_WEIGHTS, DEEPFACE_DEFAULT_WEIGHTS)
+shutil.copy2(FACENET_WEIGHTS, DEEPFACE_DEFAULT_WEIGHTS)
 
-print("OpenFace weights ready.")
+# --- Preload model ---
+FACENET_MODEL = DeepFace.build_model("Facenet")
+print("Facenet model loaded successfully.")
 
 # Generate embedding from image bytes
 def generate_embedding(image_bytes: bytes):
@@ -28,9 +30,9 @@ def generate_embedding(image_bytes: bytes):
 
     embedding = DeepFace.represent(
         img_path=temp_path,
-        model_name="OpenFace",
+        model_name="Facenet",
         enforce_detection=False,
-        detector_backend="opencv"
+        detector_backend="opencv",
     )[0]["embedding"]
 
     os.remove(temp_path)
