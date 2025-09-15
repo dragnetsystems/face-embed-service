@@ -1,20 +1,20 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from deepface import DeepFace
 import numpy as np
-from numpy.linalg import norm
-import json
 from scipy.spatial.distance import cosine
+import json
 import os
 import shutil
 
 app = FastAPI()
 
-# Path to local DeepFace weights
+# Paths
 BASE_DIR = os.path.dirname(__file__)
 WEIGHTS_DIR = os.path.join(BASE_DIR, "deepface_weights")
 FACENET_WEIGHTS = os.path.join(WEIGHTS_DIR, "facenet_weights.h5")
 DEEPFACE_DEFAULT_WEIGHTS = os.path.join(os.path.expanduser("~/.deepface/weights"), "facenet_weights.h5")
 
+# Ensure DeepFace weights directory exists and copy local weights
 os.makedirs(os.path.dirname(DEEPFACE_DEFAULT_WEIGHTS), exist_ok=True)
 shutil.copy2(FACENET_WEIGHTS, DEEPFACE_DEFAULT_WEIGHTS)
 
@@ -29,10 +29,9 @@ def generate_embedding(image_bytes: bytes):
         f.write(image_bytes)
 
     embedding = DeepFace.represent(
-        img_path="temp.jpg",
+        img_path=temp_path,
         model_name="Facenet",
         enforce_detection=False,
-        model=FACENET_MODEL,  # DeepFace will auto-load Facenet
         detector_backend="opencv",
         prog_bar=False
     )[0]["embedding"]
@@ -60,21 +59,16 @@ async def verify(file: UploadFile = File(...), references: str = Form(...)):
         [0.3, 0.4, ...]
     ]
     """
-    # Read uploaded file and generate embedding
     image_bytes = await file.read()
     embedding = generate_embedding(image_bytes)
 
-    # Parse JSON list of reference embeddings
-    reference_list = json.loads(references)  # list of lists
+    reference_list = json.loads(references)
     reference_embeddings = [np.array(ref, dtype=np.float32) for ref in reference_list]
 
-    # Compute similarity against all references
     similarities = [cosine_similarity(embedding, ref) for ref in reference_embeddings]
     max_similarity = max(similarities) if similarities else 0.0
-    verified = bool(max_similarity > 0.7)
-
-    # Check if face was detected (DeepFace returns non-zero embedding even if fallback)
-    face_detected = bool(len(embedding) > 0)
+    verified = max_similarity > 0.7
+    face_detected = len(embedding) > 0
 
     return {
         "verified": verified,
