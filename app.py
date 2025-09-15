@@ -5,6 +5,7 @@ from numpy.linalg import norm
 import json
 from scipy.spatial.distance import cosine
 import os
+import shutil
 
 app = FastAPI()
 
