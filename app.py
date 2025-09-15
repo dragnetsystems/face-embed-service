@@ -4,14 +4,35 @@ import numpy as np
 from numpy.linalg import norm
 import json
 from scipy.spatial.distance import cosine
+import os
 
 app = FastAPI()
 
+# Path to local DeepFace weights
+BASE_DIR = os.path.dirname(__file__)
+WEIGHTS_DIR = os.path.join(BASE_DIR, "deepface_weights")
+FACENET_WEIGHTS = os.path.join(WEIGHTS_DIR, "facenet_weights.h5")
+
+# --- Preload model ---
+FACENET_MODEL = DeepFace.build_model("Facenet", weights_path=FACENET_WEIGHTS)
+print("Facenet model loaded successfully.")
+
 # Generate embedding from image bytes
 def generate_embedding(image_bytes: bytes):
-    with open("temp.jpg", "wb") as f:
+    temp_path = os.path.join(BASE_DIR, "temp.jpg")
+    with open(temp_path, "wb") as f:
         f.write(image_bytes)
-    embedding = DeepFace.represent("temp.jpg", model_name="Facenet", enforce_detection=False)[0]["embedding"]
+
+    embedding = DeepFace.represent(
+        img_path="temp.jpg",
+        model_name="Facenet",
+        enforce_detection=False,
+        model=FACENET_MODEL,  # DeepFace will auto-load Facenet
+        detector_backend="opencv",
+        prog_bar=False
+    )[0]["embedding"]
+
+    os.remove(temp_path)
     return np.array(embedding, dtype=np.float32)
 
 def cosine_similarity(vec1, vec2):
