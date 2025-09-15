@@ -33,7 +33,6 @@ def generate_embedding(image_bytes: bytes):
         model_name="Facenet",
         enforce_detection=False,
         detector_backend="opencv",
-        prog_bar=False
     )[0]["embedding"]
 
     os.remove(temp_path)
