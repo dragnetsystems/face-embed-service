@@ -5,3 +5,4 @@ numpy
 scipy
 opencv-python-headless
 tf-keras
+python-multipart
