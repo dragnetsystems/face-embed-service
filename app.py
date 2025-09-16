@@ -63,9 +63,15 @@ async def verify(file: UploadFile = File(...), references: str = Form(...)):
     image_bytes = await file.read()
     embedding = generate_embedding(image_bytes)
 
-    reference_list = json.loads(references)
-    reference_embeddings = [np.array(ref, dtype=np.float32).flatten() for ref in reference_list]
+    # Load references as JSON
+    reference_data = json.loads(references)
 
+    # If the user passed a single embedding, wrap it in a list
+    if isinstance(reference_data[0], (float, int)):  # single embedding
+        reference_data = [reference_data]
+
+    # Convert all to np arrays and flatten
+    reference_embeddings = [np.array(ref, dtype=np.float32).flatten() for ref in reference_data]
 
     similarities = [cosine_similarity(embedding, ref) for ref in reference_embeddings]
     max_similarity = max(similarities) if similarities else 0.0
