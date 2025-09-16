@@ -1,4 +1,5 @@
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from deepface import DeepFace
 import numpy as np
 from scipy.spatial.distance import cosine
@@ -7,6 +8,19 @@ import os
 import shutil
 
 app = FastAPI()
+
+# Add this **before your endpoints**
+origins = [
+    "*"  # Allow all origins for testing; later you can restrict to your React frontend domain
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,          # which origins are allowed
+    allow_credentials=True,
+    allow_methods=["*"],            # allow all HTTP methods (POST, OPTIONS, etc.)
+    allow_headers=["*"],            # allow all headers
+)
 
 # Paths
 BASE_DIR = os.path.dirname(__file__)
