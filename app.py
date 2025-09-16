@@ -39,6 +39,8 @@ def generate_embedding(image_bytes: bytes):
     return np.array(embedding, dtype=np.float32)
 
 def cosine_similarity(vec1, vec2):
+    vec1 = np.array(vec1, dtype=np.float32).flatten()
+    vec2 = np.array(vec2, dtype=np.float32).flatten()
     return 1 - cosine(vec1, vec2)
 
 # Endpoint 1: Create embedding from uploaded photo
@@ -62,7 +64,8 @@ async def verify(file: UploadFile = File(...), references: str = Form(...)):
     embedding = generate_embedding(image_bytes)
 
     reference_list = json.loads(references)
-    reference_embeddings = [np.array(ref, dtype=np.float32) for ref in reference_list]
+    reference_embeddings = [np.array(ref, dtype=np.float32).flatten() for ref in reference_list]
+
 
     similarities = [cosine_similarity(embedding, ref) for ref in reference_embeddings]
     max_similarity = max(similarities) if similarities else 0.0
