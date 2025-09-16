@@ -42,14 +42,19 @@ def generate_embedding(image_bytes: bytes):
     with open(temp_path, "wb") as f:
         f.write(image_bytes)
 
-    embedding = DeepFace.represent(
-        img_path=temp_path,
-        model_name="Facenet",
-        enforce_detection=False,
-        detector_backend="opencv",
-    )[0]["embedding"]
+    try:
+        embedding = DeepFace.represent(
+            img_path=temp_path,
+            model_name="Facenet",
+            enforce_detection=True,
+            detector_backend="mtcnn",
+        )[0]["embedding"]
+    finally:
+        os.remove(temp_path)
 
-    os.remove(temp_path)
+    if embedding is None:
+        raise ValueError("No face detected in the image")
+
     return np.array(embedding, dtype=np.float32)
 
 def cosine_similarity(vec1, vec2):
