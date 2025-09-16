@@ -1,10 +1,12 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from deepface import DeepFace
 import numpy as np
 from scipy.spatial.distance import cosine
 import json
 import os
 import shutil
+import base64
 
 app = FastAPI()
 
@@ -43,35 +45,36 @@ def cosine_similarity(vec1, vec2):
     vec2 = np.array(vec2, dtype=np.float32).flatten()
     return 1 - cosine(vec1, vec2)
 
-# Endpoint 1: Create embedding from uploaded photo
+# Pydantic models for JSON requests
+class EmbedRequest(BaseModel):
+    image_base64: str
+
+class VerifyRequest(BaseModel):
+    image_base64: str
+    references: list[list[float]]  # list of embeddings
+
+# Endpoint 1: Create embedding from JSON base64 image
 @app.post("/embed")
-async def embed_face(file: UploadFile = File(...)):
-    image_bytes = await file.read()
+async def embed_face_json(req: EmbedRequest):
+    try:
+        image_bytes = base64.b64decode(req.image_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid base64 image")
+
     embedding = generate_embedding(image_bytes)
     return {"embedding": embedding.tolist()}
 
 # Endpoint 2: Verify face against multiple reference embeddings
 @app.post("/verify")
-async def verify(file: UploadFile = File(...), references: str = Form(...)):
-    """
-    references: JSON string of list of embeddings, e.g.
-    [
-        [0.1, 0.2, ...],
-        [0.3, 0.4, ...]
-    ]
-    """
-    image_bytes = await file.read()
+async def verify_json(req: VerifyRequest):
+    try:
+        image_bytes = base64.b64decode(req.image_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid base64 image")
+
     embedding = generate_embedding(image_bytes)
 
-    # Load references as JSON
-    reference_data = json.loads(references)
-
-    # If the user passed a single embedding, wrap it in a list
-    if isinstance(reference_data[0], (float, int)):  # single embedding
-        reference_data = [reference_data]
-
-    # Convert all to np arrays and flatten
-    reference_embeddings = [np.array(ref, dtype=np.float32).flatten() for ref in reference_data]
+    reference_embeddings = [np.array(ref, dtype=np.float32).flatten() for ref in req.references]
 
     similarities = [cosine_similarity(embedding, ref) for ref in reference_embeddings]
     max_similarity = max(similarities) if similarities else 0.0
