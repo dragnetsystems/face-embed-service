@@ -1,12 +1,10 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from deepface import DeepFace
 import numpy as np
 from scipy.spatial.distance import cosine
 import json
 import os
 import shutil
-import base64
 
 app = FastAPI()
 
@@ -45,44 +43,55 @@ def cosine_similarity(vec1, vec2):
     vec2 = np.array(vec2, dtype=np.float32).flatten()
     return 1 - cosine(vec1, vec2)
 
-# Pydantic models for JSON requests
-class EmbedRequest(BaseModel):
-    image_base64: str
-
-class VerifyRequest(BaseModel):
-    image_base64: str
-    references: list[list[float]]  # list of embeddings
-
-# Endpoint 1: Create embedding from JSON base64 image
+# Endpoint 1: Create embedding from uploaded photo
 @app.post("/embed")
-async def embed_face_json(req: EmbedRequest):
+async def embed_face(file: UploadFile = File(...)):
+    if not file:
+        raise HTTPException(status_code=400, detail="No file uploaded.")
     try:
-        image_bytes = base64.b64decode(req.image_base64)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid base64 image")
-
-    embedding = generate_embedding(image_bytes)
-    return {"embedding": embedding.tolist()}
+        image_bytes = await file.read()
+        if len(image_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        embedding = generate_embedding(image_bytes)
+        return {"embedding": embedding.tolist()}
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to process image: {str(e)}")
 
 # Endpoint 2: Verify face against multiple reference embeddings
 @app.post("/verify")
-async def verify_json(req: VerifyRequest):
+async def verify(file: UploadFile = File(...), references: str = Form(...)):
+    if not file:
+        raise HTTPException(status_code=400, detail="No file uploaded.")
+    if not references:
+        raise HTTPException(status_code=400, detail="References are required.")
     try:
-        image_bytes = base64.b64decode(req.image_base64)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid base64 image")
+        image_bytes = await file.read()
+        if len(image_bytes) == 0:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+        embedding = generate_embedding(image_bytes)
 
-    embedding = generate_embedding(image_bytes)
+        # Load references as JSON
+        try:
+            reference_data = json.loads(references)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="References must be valid JSON.")
 
-    reference_embeddings = [np.array(ref, dtype=np.float32).flatten() for ref in req.references]
+        # Wrap single embedding into list
+        if isinstance(reference_data, list) and len(reference_data) > 0 and isinstance(reference_data[0], (float, int)):
+            reference_data = [reference_data]
 
-    similarities = [cosine_similarity(embedding, ref) for ref in reference_embeddings]
-    max_similarity = max(similarities) if similarities else 0.0
-    verified = max_similarity > 0.7
-    face_detected = len(embedding) > 0
+        # Convert all to np arrays and flatten
+        reference_embeddings = [np.array(ref, dtype=np.float32).flatten() for ref in reference_data]
 
-    return {
-        "verified": verified,
-        "similarity": float(max_similarity),
-        "face_detected": face_detected
-    }
+        similarities = [cosine_similarity(embedding, ref) for ref in reference_embeddings]
+        max_similarity = max(similarities) if similarities else 0.0
+        verified = max_similarity > 0.7
+        face_detected = len(embedding) > 0
+
+        return {
+            "verified": verified,
+            "similarity": float(max_similarity),
+            "face_detected": face_detected
+        }
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to process verification: {str(e)}")
