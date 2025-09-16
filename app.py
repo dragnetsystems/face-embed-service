@@ -98,13 +98,13 @@ async def verify(file: UploadFile = File(...), references: str = Form(...)):
         reference_embeddings = [np.array(ref, dtype=np.float32).flatten() for ref in reference_data]
 
         similarities = [cosine_similarity(embedding, ref) for ref in reference_embeddings]
-        max_similarity = max(similarities) if similarities else 0.0
-        verified = max_similarity > 0.7
-        face_detected = len(embedding) > 0
+        max_similarity = float(max(similarities)) if similarities else 0.0
+        verified = bool(max_similarity > 0.7)         # convert to Python bool
+        face_detected = bool(len(embedding) > 0)     # convert to Python bool
 
         return {
             "verified": verified,
-            "similarity": float(max_similarity),
+            "similarity": max_similarity,
             "face_detected": face_detected
         }
     except Exception as e:
