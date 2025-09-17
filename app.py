@@ -76,12 +76,12 @@ def passes_liveness_heuristics(image_bytes: bytes) -> bool:
 
     # 1. Sharpness check (variance of Laplacian)
     sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
-    if sharpness < 50:  # too blurry, maybe photo-of-photo
+    if sharpness < 20:  # too blurry, maybe photo-of-photo
         return False
 
     # 2. Brightness check (avoid very dark/bright images)
     brightness = np.mean(gray)
-    if brightness < 40 or brightness > 220:
+    if brightness < 20 or brightness > 240:
         return False
 
     # 3. Face size check (must cover reasonable area)
@@ -90,7 +90,7 @@ def passes_liveness_heuristics(image_bytes: bytes) -> bool:
     if len(detected) == 0:
         return False
     for (x, y, w, h) in detected:
-        if w * h < 5000:  # face too small
+        if w * h < 2000:  # face too small
             return False
 
     return True    
