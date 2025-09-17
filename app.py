@@ -6,6 +6,7 @@ from scipy.spatial.distance import cosine
 import json
 import os
 import shutil
+import cv2
 
 app = FastAPI()
 
@@ -62,6 +63,38 @@ def cosine_similarity(vec1, vec2):
     vec2 = np.array(vec2, dtype=np.float32).flatten()
     return 1 - cosine(vec1, vec2)
 
+# For Checking image spoofing
+def passes_liveness_heuristics(image_bytes: bytes) -> bool:
+    """Basic spoof prevention heuristics on single image."""
+    # Decode image
+    nparr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if img is None:
+        return False
+
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # 1. Sharpness check (variance of Laplacian)
+    sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
+    if sharpness < 50:  # too blurry, maybe photo-of-photo
+        return False
+
+    # 2. Brightness check (avoid very dark/bright images)
+    brightness = np.mean(gray)
+    if brightness < 40 or brightness > 220:
+        return False
+
+    # 3. Face size check (must cover reasonable area)
+    faces = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
+    detected = faces.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5)
+    if len(detected) == 0:
+        return False
+    for (x, y, w, h) in detected:
+        if w * h < 5000:  # face too small
+            return False
+
+    return True    
+
 # Endpoint 1: Create embedding from uploaded photo
 @app.post("/embed")
 async def embed_face(file: UploadFile = File(...)):
@@ -87,6 +120,16 @@ async def verify(file: UploadFile = File(...), references: str = Form(...)):
         image_bytes = await file.read()
         if len(image_bytes) == 0:
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+        # --- Liveness heuristic check ---
+        if not passes_liveness_heuristics(image_bytes):
+            return {
+                "verified": False,
+                "similarity": 0.0,
+                "face_detected": False,
+                "reason": "Failed liveness/spoof check"
+            }
+
         embedding = generate_embedding(image_bytes)
 
         # Load references as JSON
