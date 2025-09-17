@@ -122,13 +122,13 @@ async def verify(file: UploadFile = File(...), references: str = Form(...)):
             raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
         # --- Liveness heuristic check ---
-        if not passes_liveness_heuristics(image_bytes):
-            return {
-                "verified": False,
-                "similarity": 0.0,
-                "face_detected": False,
-                "reason": "Failed liveness/spoof check"
-            }
+        # if not passes_liveness_heuristics(image_bytes):
+        #     return {
+        #         "verified": False,
+        #         "similarity": 0.0,
+        #         "face_detected": False,
+        #         "reason": "Failed liveness/spoof check"
+        #     }
 
         embedding = generate_embedding(image_bytes)
 
